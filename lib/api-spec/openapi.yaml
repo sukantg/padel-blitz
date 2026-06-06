@@ -1,0 +1,193 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: ai
+    description: AI generation operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /generate-nft:
+    post:
+      operationId: generateNft
+      tags: [ai]
+      summary: Generate an AI superhero player card image
+      description: Builds a tier-aware prompt and returns a generated portrait image as a data URL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NftInput"
+      responses:
+        "200":
+          description: Generated image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NftImage"
+        "500":
+          description: Generation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /coach:
+    post:
+      operationId: getCoachAnalysis
+      tags: [ai]
+      summary: Get an AI padel coaching analysis
+      description: Returns a structured coaching breakdown based on the player's described session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoachInput"
+      responses:
+        "200":
+          description: Coaching analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoachAnalysis"
+        "500":
+          description: Analysis failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    NftInput:
+      type: object
+      required:
+        - tier
+        - skillScore
+        - netDominance
+        - overheadAttack
+        - glassDefense
+        - patienceConsistency
+        - lobQuality
+      properties:
+        tier:
+          type: string
+          description: One of Rookie, Club Player, Contender, Elite, Legend
+        skillScore:
+          type: number
+        netDominance:
+          type: number
+        overheadAttack:
+          type: number
+        glassDefense:
+          type: number
+        patienceConsistency:
+          type: number
+        lobQuality:
+          type: number
+        playerName:
+          type: string
+          maxLength: 40
+          description: Player's name, used to infer the depicted athlete's gender.
+        description:
+          type: string
+          maxLength: 600
+          description: Player's free-text description (style, story) woven into the card art.
+        referenceImage:
+          type: string
+          description: Optional data URL of a player photo. When present, the superhero is generated to resemble this person.
+        matchOutcome:
+          type: string
+          enum: [win, loss]
+          description: Match result.
+        matchType:
+          type: string
+          enum: [friendly, competitive]
+          description: Match type.
+    NftImage:
+      type: object
+      required:
+        - imageUrl
+      properties:
+        imageUrl:
+          type: string
+          description: Data URL (base64-encoded PNG) of the generated card image
+    CoachInput:
+      type: object
+      required:
+        - description
+        - skillScore
+        - tier
+      properties:
+        description:
+          type: string
+          description: Free-text recap of how the player played.
+        skillScore:
+          type: number
+        tier:
+          type: string
+        netDominance:
+          type: number
+        overheadAttack:
+          type: number
+        glassDefense:
+          type: number
+        patienceConsistency:
+          type: number
+        lobQuality:
+          type: number
+        matchOutcome:
+          type: string
+          enum: [win, loss]
+        matchType:
+          type: string
+          enum: [friendly, competitive]
+        scoreline:
+          type: string
+        partnerName:
+          type: string
+    CoachAnalysis:
+      type: object
+      required:
+        - focusAreas
+      properties:
+        focusAreas:
+          type: array
+          description: Exactly three things to work on next game, as plain coaching sentences.
+          minItems: 3
+          maxItems: 3
+          items:
+            type: string

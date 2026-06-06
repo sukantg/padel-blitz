@@ -1,0 +1,257 @@
+Build a full-stack Web3 dApp called Padel Blitz — a padel sports micro-wagering app with an AI-generated superhero NFT player card and an AI coach. This is for a hackathon on Monad blockchain (EVM-compatible, high-throughput testnet).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STACK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Frontend: React + Vite + TailwindCSS
+- Smart contracts: Solidity (hardcode ABI in frontend)
+- Wallet: ethers.js v6 (no wagmi)
+- AI text: OpenAI API (gpt-4o) via OPENAI_API_KEY
+- AI image: OpenAI DALL-E 3 via same OPENAI_API_KEY
+- Chain: Monad Testnet (chainId: 10143, RPC: https://testnet-rpc.monad.xyz)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SMART CONTRACT — PadelBlitzWager.sol
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  struct Match {
+    address player1;
+    address player2;
+    uint256 wagerAmount;
+    uint8 state; // 0=Open, 1=Active, 2=Settled, 3=Cancelled
+    address winner;
+    string description;
+    uint256 createdAt;
+  }
+
+Functions:
+- createMatch(string description) payable → returns matchId
+- joinMatch(uint256 matchId) payable → must send exact wagerAmount
+- declareWinner(uint256 matchId, address winner) → onlyAdmin
+- cancelMatch(uint256 matchId) → refunds player1
+- getMatch(uint256 matchId) → returns Match struct
+- storeNFT(string tokenURI) → stores base64 tokenURI on-chain per address
+
+Events: MatchCreated, MatchJoined, MatchSettled, MatchCancelled
+Fee: 1% taken on settlement, sent to admin
+Admin = deployer address
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND — 4 TABS IN THIS ORDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TAB 1 — MY PLAYER NFT (hero feature, build this first)
+
+SKILL SCORE CALCULATION (store everything in localStorage by wallet address):
+- Player submits 5 sliders per session: Wins, Rallies, Smashes, Net Play, Consistency (each 0–10)
+- Session score = wins×0.30 + rallies×0.20 + smashes×0.20 + netPlay×0.15 + consistency×0.15
+- Cumulative skill score = rolling average of ALL past sessions (update on each save)
+- Always displayed to 1 decimal place (e.g. 7.4 / 10)
+
+TIER SYSTEM (drives image style + card theme):
+  0.0–2.9  → Tier: "Rookie"      → style: scrappy underdog, casual padel kit
+  3.0–4.9  → Tier: "Club Player" → style: confident club hero, blue kit
+  5.0–6.9  → Tier: "Contender"   → style: fierce competitor, purple armour
+  7.0–8.4  → Tier: "Elite"       → style: golden champion, glowing aura
+  8.5–10.0 → Tier: "Legend"      → style: mythic god-tier, crimson cape
+
+━━━━━━━━━━━━━━━━━━
+AI IMAGE GENERATION (DALL-E 3) — THE CENTREPIECE
+━━━━━━━━━━━━━━━━━━
+When the player clicks "Save & evolve card", call POST /api/generate-nft on the backend.
+
+Backend /api/generate-nft:
+- Receives: { tier, skillScore, wins, rallies, smashes, netPlay, consistency }
+- Calls DALL-E 3 with this dynamically constructed prompt:
+
+  const tierStyles = {
+    Rookie:      "a scrappy underdog padel player in casual sports kit, determined expression, gritty urban padel court background, comic book style",
+    "Club Player": "a confident club-level padel superhero in a sleek blue outfit with a padel racket, dynamic pose, bright indoor court background, vibrant comic art style",
+    Contender:   "a fierce padel warrior in purple futuristic armour holding a glowing padel racket, intense battle stance, dramatic stadium background, Marvel comic style",
+    Elite:       "a golden champion padel superhero radiating a warm golden aura, wearing ornate gold-trimmed padel gear, triumphant pose, epic arena background, cinematic comic style",
+    Legend:      "a mythic god-tier padel legend in a crimson flowing cape and dark armour, supernatural padel racket crackling with energy, cosmic court background, ultra-dramatic DC Comics style",
+  };
+
+  const prompt = `${tierStyles[tier]}.
+    The player has a skill score of ${skillScore}/10.
+    Their strongest stat is ${dominantStat} (score: ${dominantStatValue}/10).
+    Incorporate visual cues for this strength into the character design.
+    Full body portrait. No text or logos in the image.
+    Style: bold comic book illustration, high contrast, dramatic lighting.
+    Aspect ratio: portrait (tall).`;
+
+- dominantStat = whichever of the 5 stats has the highest value
+- API call:
+    const image = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1792",   // portrait
+      quality: "standard",
+      response_format: "url"
+    });
+    return { imageUrl: image.data[0].url };
+
+- Cache the returned image URL in localStorage (by wallet + session index)
+  so it does not regenerate on every render — only regenerate when
+  "Save & evolve card" is clicked with new stat data
+
+━━━━━━━━━━━━━━━━━━
+NFT CARD LAYOUT (React component, wraps the DALL-E image):
+━━━━━━━━━━━━━━━━━━
+Render a premium trading-card style frame around the DALL-E image:
+
+  ┌─────────────────────────┐
+  │  PADEL BLITZ  [tier badge] │  ← top bar, dark bg, tier colour accent
+  │                         │
+  │   [DALL-E 3 image here] │  ← fills most of the card, object-fit: cover
+  │                         │
+  │  ⚡ 7.4 / 10  ELITE     │  ← skill score + tier name overlay
+  │  ████████░░  Wins       │  ← 5 mini stat bars at bottom
+  │  ██████░░░░  Rallies    │
+  │  ███████░░░  Smashes    │
+  │  █████░░░░░  Net Play   │
+  │  ████████░░  Consistency│
+  │  0x1234...5678          │  ← wallet address
+  │  Monad Testnet          │  ← footer
+  └─────────────────────────┘
+
+- Card width: 320px, auto height
+- Tier-coloured border (4px solid):
+    Rookie → #888780, Club Player → #1D9E75, Contender → #7B61FF,
+    Elite → #EF9F27, Legend → #E24B4A
+- While image is loading show a pulsing skeleton placeholder
+  with the tier colour and "Generating your superhero..." text
+- After image loads, fade it in smoothly (CSS opacity transition)
+
+"Mint NFT on Monad" button below card:
+- Encodes card metadata as JSON → base64 → calls storeNFT() on contract
+- Shows tx hash + Monad explorer link on success
+- Label becomes "Update NFT on Monad" after first mint
+
+INPUT PANEL (below card):
+- Heading: "Log a new match"
+- Five sliders (0–10, step 0.5): Wins, Rallies, Smashes, Net Play, Consistency
+- Each slider shows live numeric value next to it
+- "Save & evolve card" button:
+    1. Recalculates cumulative skill score
+    2. Determines new tier
+    3. Calls /api/generate-nft → gets new DALL-E image URL
+    4. Re-renders card with new image + stats
+- Show session history table below: date | score | tier (last 5 sessions)
+
+TAB 2 — AI COACH
+- Text area: "Describe how you played today"
+- "Analyse my game" button → POST to /api/coach
+- Backend /api/coach calls gpt-4o:
+    System prompt: "You are an expert padel coach. The player's skill score is
+    {skillScore}/10 and their tier is {tier}. Return ONLY valid JSON, no markdown:
+    { archetype, archetypeEmoji, strengths: string[3], weaknesses: string[3],
+      drills: string[3], tip: string (under 20 words), rating: number (1–10) }"
+- Pass skillScore + tier in request body from frontend
+- Display as styled Player Coach Card:
+    • Archetype name + emoji (large)
+    • Star rating out of 10
+    • Strengths / Weaknesses / Drills in 3 columns
+    • Tip as highlighted quote block
+    • Card border matches current tier colour
+
+TAB 3 — WAGER
+- Connect MetaMask (auto-add Monad testnet via wallet_addEthereumChain)
+- "Create Wager": description + MON amount → createMatch()
+- "Join Wager": matchId input → fetch details → joinMatch()
+- "Settle Match" (admin only): matchId + winner → declareWinner()
+- Live feed: last 5 matches, state badges:
+    Open (green) · Active (yellow) · Settled (purple) · Cancelled (gray)
+
+TAB 4 — LEADERBOARD
+- On-chain: read MatchSettled events → tally wins per address → top 5
+- NFT board: read localStorage → top 3 players by skill score with tier badge
+- Truncate addresses: 0x1234...5678
+- Refresh button
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND (Express server — server/index.js)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Install: npm install express cors openai dotenv
+
+Two endpoints:
+
+POST /api/generate-nft
+  body: { tier, skillScore, wins, rallies, smashes, netPlay, consistency }
+  → build DALL-E 3 prompt dynamically (see above)
+  → call openai.images.generate (dall-e-3, 1024x1792, standard quality)
+  → return { imageUrl: string }
+  → wrap in try/catch; on error return { error: message }
+
+POST /api/coach
+  body: { description, skillScore, tier }
+  → call openai.chat.completions.create (gpt-4o, max_tokens: 600)
+  → strip markdown fences if present
+  → JSON.parse and return
+  → wrap in try/catch
+
+OpenAI client init:
+  import OpenAI from "openai";
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MONAD TESTNET CONFIG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Chain ID: 10143
+RPC URL: https://testnet-rpc.monad.xyz
+Currency: MON
+Explorer: https://testnet.monadexplorer.com
+Faucet: https://faucet.monad.xyz
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DESIGN AESTHETIC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+App name: Padel Blitz
+Tagline: "On-court wagers. AI coaching. Your superhero evolves with you."
+Dark theme (#0F0E1A background). Purple accent #7B61FF. Lime pop #E8FF58.
+Fonts: "Syne" (headings) + "DM Sans" (body) from Google Fonts.
+Logo: lightning bolt + "Padel Blitz" in Syne Bold, purple.
+Nav tabs: pill-style, active tab fills #7B61FF, white text.
+CTA buttons: solid #7B61FF, white text.
+NFT card must feel like a premium holographic trading card.
+The generated superhero image is the star — give it maximum real estate.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ENV VARIABLES (Replit Secrets)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPENAI_API_KEY=your_key_here
+CONTRACT_ADDRESS=0x... (after deploying PadelBlitzWager.sol)
+ADMIN_PRIVATE_KEY=0x... (optional)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE STRUCTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/
+├── contracts/
+│   └── PadelBlitzWager.sol
+├── src/
+│   ├── App.jsx
+│   ├── components/
+│   │   ├── NFTTab.jsx           ← Tab 1: DALL-E card + sliders
+│   │   ├── CoachTab.jsx         ← Tab 2: gpt-4o coach
+│   │   ├── WagerTab.jsx         ← Tab 3: on-chain wagering
+│   │   └── LeaderboardTab.jsx   ← Tab 4: wins + NFT rankings
+│   ├── hooks/
+│   │   ├── useContract.js       (ethers.js)
+│   │   └── usePlayerStats.js    (localStorage skill score logic)
+│   └── config.js                (ABI + chain config + tier colours)
+├── server/
+│   └── index.js                 (Express: /api/generate-nft + /api/coach)
+├── .env
+└── package.json
+
+BUILD ORDER (critical — do this sequence):
+1. server/index.js — both endpoints working (test with curl first)
+2. usePlayerStats.js — skill score + tier logic
+3. NFTTab.jsx — sliders → /api/generate-nft → card render (get this demoing ASAP)
+4. CoachTab.jsx — text input → /api/coach → result card
+5. WagerTab.jsx — MetaMask + contract interactions
+6. LeaderboardTab.jsx
+7. Final polish: fonts, colours, transitions
+
+Run: npm run dev (frontend) + node server/index.js (backend)
