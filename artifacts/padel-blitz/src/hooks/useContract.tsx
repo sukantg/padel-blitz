@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { BrowserProvider, Contract } from 'ethers';
-import { CHAIN_CONFIG, CONTRACT_ABI, getContractAddress } from '../config';
+import { CHAIN_CONFIG, CONTRACT_ABI, NFT_CONTRACT_ABI, getContractAddress, getNftContractAddress } from '../config';
 import { toast } from './use-toast';
 
 interface WalletState {
   provider: BrowserProvider | null;
   contract: Contract | null;
+  nftContract: Contract | null;
   address: string;
   isConnected: boolean;
   chainId: number | null;
@@ -14,6 +15,7 @@ interface WalletState {
   switchToMonad: () => Promise<void>;
   disconnect: () => void;
   contractAddress: string | undefined;
+  nftContractAddress: string | undefined;
 }
 
 // Placeholder address used for the front-end-only "connected" demo state.
@@ -24,6 +26,7 @@ const WalletContext = createContext<WalletState | null>(null);
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [provider, setProvider] = useState<BrowserProvider | null>(null);
   const [contract, setContract] = useState<Contract | null>(null);
+  const [nftContract, setNftContract] = useState<Contract | null>(null);
   const [address, setAddress] = useState<string>('');
   const [isConnected, setIsConnected] = useState(false);
   const [chainId, setChainId] = useState<number | null>(null);
@@ -74,15 +77,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const contractAddr = getContractAddress();
+    const nftAddr = getNftContractAddress();
     // Only attach a signer once the user has actually connected; calling
     // getSigner() beforehand triggers a wallet prompt that throws if rejected.
-    if (provider && contractAddr && isConnected && address && !isDemo) {
+    if (provider && isConnected && address && !isDemo) {
       provider.getSigner().then(signer => {
-        const c = new Contract(contractAddr, CONTRACT_ABI, signer);
-        setContract(c);
+        setContract(contractAddr ? new Contract(contractAddr, CONTRACT_ABI, signer) : null);
+        setNftContract(nftAddr ? new Contract(nftAddr, NFT_CONTRACT_ABI, signer) : null);
       }).catch(e => console.error("Failed to get signer", e));
     } else {
       setContract(null);
+      setNftContract(null);
     }
   }, [provider, address, isConnected, isDemo]); // re-init contract when connection/address changes
 
@@ -209,6 +214,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const disconnect = () => {
     setProvider(null);
     setContract(null);
+    setNftContract(null);
     setAddress('');
     setIsConnected(false);
     setChainId(null);
@@ -218,6 +224,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const value: WalletState = {
     provider,
     contract,
+    nftContract,
     address,
     isConnected,
     chainId,
@@ -225,7 +232,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     connectWallet,
     switchToMonad,
     disconnect,
-    contractAddress: getContractAddress()
+    contractAddress: getContractAddress(),
+    nftContractAddress: getNftContractAddress(),
   };
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

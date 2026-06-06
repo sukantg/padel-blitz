@@ -109,6 +109,7 @@ pnpm --filter @workspace/api-spec run codegen                # Regenerate API cl
 | `PORT` | Yes | Port for each service (see run commands above) |
 | `BASE_PATH` | Yes (frontend) | Vite base path — use `/` for the main app |
 | `VITE_CONTRACT_ADDRESS` | No | Deployed `PadelBlitzWager` address (can also be set in the Wager tab UI) |
+| `VITE_NFT_CONTRACT_ADDRESS` | No | Deployed `PadelBlitzPlayerNFT` address (can also be set in the My Progress tab) |
 
 Restart the API server after changing `OPENAI_API_KEY`.
 
@@ -122,11 +123,50 @@ Restart the API server after changing `OPENAI_API_KEY`.
 | Explorer | [testnet.monadexplorer.com](https://testnet.monadexplorer.com) |
 | Faucet | [faucet.monad.xyz](https://faucet.monad.xyz) |
 
-Deploy `contracts/PadelBlitzWager.sol` to Monad Testnet, then set the address via `VITE_CONTRACT_ADDRESS` or paste it in the Wager tab.
+Deploy contracts to Monad Testnet:
 
-## Smart contract
+- **Wager:** `contracts/PadelBlitzWager.sol` — set via `VITE_CONTRACT_ADDRESS` or paste in the Wager tab.
+- **NFT:** `contracts/PadelBlitzPlayerNFT.sol` — set via `VITE_NFT_CONTRACT_ADDRESS` or paste in the My Progress tab.
 
-`PadelBlitzWager` supports peer-to-peer MON wagers and on-chain NFT card storage:
+### Deploy with Remix (recommended)
+
+See **[docs/DEPLOY_REMIX.md](docs/DEPLOY_REMIX.md)** for the full walkthrough. Quick version:
+
+1. Get MON from [faucet.monad.xyz](https://faucet.monad.xyz)
+2. Add Monad Testnet to MetaMask (chain ID `10143`, RPC `https://testnet-rpc.monad.xyz`)
+3. Open [remix.ethereum.org](https://remix.ethereum.org)
+4. Paste [`contracts/remix/PadelBlitzWager.sol`](contracts/remix/PadelBlitzWager.sol) → compile `0.8.20` → deploy via **Injected Provider - MetaMask**
+5. Paste [`contracts/remix/PadelBlitzPlayerNFT.sol`](contracts/remix/PadelBlitzPlayerNFT.sol) → compile → deploy the same way
+6. Save both addresses into the app (Wager tab + My Progress tab)
+
+### Deploy with Foundry
+
+```bash
+forge install OpenZeppelin/openzeppelin-contracts@v5.0.2
+forge build
+forge create contracts/PadelBlitzPlayerNFT.sol:PadelBlitzPlayerNFT \
+  --rpc-url https://testnet-rpc.monad.xyz \
+  --private-key $DEPLOYER_PRIVATE_KEY
+```
+
+## Smart contracts
+
+### `PadelBlitzPlayerNFT` (ERC-721)
+
+Proper NFT minting for evolving player cards:
+
+| Function | Description |
+|----------|-------------|
+| `mintPlayerCard(tokenURI)` | Mint a new ERC-721 token, or update metadata if the caller already has one |
+| `tokenIdOf(player)` | Look up a player's token id (0 if none) |
+| `tokenURI(tokenId)` | Read on-chain metadata URI |
+| `playerTokenId(player)` | Same as `tokenIdOf` (public mapping) |
+
+Collection name: **Padel Blitz Player** · symbol: **PADEL**
+
+### `PadelBlitzWager`
+
+Peer-to-peer MON wagers (separate from the NFT contract):
 
 | Function | Description |
 |----------|-------------|
@@ -135,7 +175,7 @@ Deploy `contracts/PadelBlitzWager.sol` to Monad Testnet, then set the address vi
 | `declareWinner(matchId, winner)` | Admin settles match; 1% fee to deployer |
 | `cancelMatch(matchId)` | Cancel open match; refunds player 1 |
 | `getMatch(matchId)` | Read match details |
-| `storeNFT(tokenURI)` | Store base64 JSON metadata per address |
+| `storeNFT(tokenURI)` | Legacy metadata storage (use `PadelBlitzPlayerNFT` instead) |
 
 Match states: Open → Active → Settled / Cancelled.
 

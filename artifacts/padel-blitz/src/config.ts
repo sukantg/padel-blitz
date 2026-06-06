@@ -171,6 +171,77 @@ export const getTier = (score: number) => {
   return TIERS[0];
 };
 
+export const NFT_CONTRACT_ABI = [
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "player", "type": "address" },
+      { "indexed": true, "internalType": "uint256", "name": "tokenId", "type": "uint256" },
+      { "indexed": false, "internalType": "string", "name": "tokenURI", "type": "string" }
+    ],
+    "name": "PlayerCardMinted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "player", "type": "address" },
+      { "indexed": true, "internalType": "uint256", "name": "tokenId", "type": "uint256" },
+      { "indexed": false, "internalType": "string", "name": "tokenURI", "type": "string" }
+    ],
+    "name": "PlayerCardUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "owner", "type": "address" }],
+    "name": "balanceOf",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "string", "name": "tokenURI", "type": "string" }],
+    "name": "mintPlayerCard",
+    "outputs": [{ "internalType": "uint256", "name": "tokenId", "type": "uint256" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "name": "playerTokenId",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "tokenId", "type": "uint256" }],
+    "name": "tokenURI",
+    "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "player", "type": "address" }],
+    "name": "tokenIdOf",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+] as const;
+
 export const getContractAddress = () => {
   return import.meta.env.VITE_CONTRACT_ADDRESS || localStorage.getItem('padel_contract_address') || "";
+};
+
+export const getNftContractAddress = () => {
+  return (
+    import.meta.env.VITE_NFT_CONTRACT_ADDRESS ||
+    localStorage.getItem('padel_nft_contract_address') ||
+    ""
+  );
 };

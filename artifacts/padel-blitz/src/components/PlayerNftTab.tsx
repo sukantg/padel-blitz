@@ -82,7 +82,7 @@ interface PlayerNftTabProps {
 }
 
 export function PlayerNftTab({ generatedImage, setGeneratedImage }: PlayerNftTabProps) {
-  const { address, contract, isConnected, connectWallet } = useContract();
+  const { address, contract, nftContract, isConnected, connectWallet } = useContract();
   const { stats, addSession, updateLatestImage } = usePlayerStats(address);
   const generateNft = useGenerateNft();
 
@@ -104,8 +104,18 @@ export function PlayerNftTab({ generatedImage, setGeneratedImage }: PlayerNftTab
   const [description, setDescription] = useState("");
 
   const [mintTx, setMintTx] = useState("");
+  const [nftContractAddress, setNftContractAddress] = useState(
+    localStorage.getItem("padel_nft_contract_address") || "",
+  );
 
   const formRef = useRef<HTMLDivElement>(null);
+
+  const handleSetNftContractAddress = () => {
+    localStorage.setItem("padel_nft_contract_address", nftContractAddress);
+    window.location.reload();
+  };
+
+  const mintTarget = nftContract ?? contract;
 
   const handleUpdateStats = () => {
     setMintTx("");
@@ -196,7 +206,7 @@ export function PlayerNftTab({ generatedImage, setGeneratedImage }: PlayerNftTab
         await connectWallet();
         return;
       }
-      if (!contract) return;
+      if (!mintTarget) return;
 
       const metadata = {
         name: `Padel Blitz - ${tierName}`,
@@ -214,7 +224,9 @@ export function PlayerNftTab({ generatedImage, setGeneratedImage }: PlayerNftTab
       };
 
       const tokenURI = "data:application/json;base64," + btoa(JSON.stringify(metadata));
-      const tx = await contract.storeNFT(tokenURI);
+      const tx = nftContract
+        ? await nftContract.mintPlayerCard(tokenURI)
+        : await contract!.storeNFT(tokenURI);
       const receipt = await tx.wait();
       setMintTx(receipt.hash);
     } catch (e) {
@@ -529,7 +541,23 @@ export function PlayerNftTab({ generatedImage, setGeneratedImage }: PlayerNftTab
             Card generation failed. Please try again.
           </p>
         )}
-        {!contract && <p className="text-xs text-muted-foreground text-center">Contract not configured</p>}
+        {!mintTarget && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground text-center">
+              Set your deployed NFT contract address to mint on Monad.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="0x… NFT contract address"
+                value={nftContractAddress}
+                onChange={(e) => setNftContractAddress(e.target.value)}
+              />
+              <Button type="button" variant="outline" onClick={handleSetNftContractAddress}>
+                Save
+              </Button>
+            </div>
+          </div>
+        )}
         {mintTx && (
           <a
             href={`https://testnet.monadexplorer.com/tx/${mintTx}`}
